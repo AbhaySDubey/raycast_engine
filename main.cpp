@@ -42,7 +42,7 @@ class Player {
 private:
     /*
         player would be an isoceles triangle with a height longer than the base (considering the player faces along the Y-axis - straight ahead)
-        to represent the direction the player is faces along, we'll draw a circle (point at the top vertex - head)
+        to represent the direction the player is facing along, we'll draw a circle (point at the top vertex - head)
         
         the pos (centroid of the triangle) represents the axis along which the player rotates
     */
