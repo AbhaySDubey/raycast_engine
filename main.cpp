@@ -1,165 +1,291 @@
 #include "raylib.h"
-#include <iostream>
+#include "operator_overloads.h"
+#include "map_utils.h"
 #include <vector>
+#include <iostream>
 #include <cmath>
 #include <limits>
 #include <algorithm>
-#include <unordered_map>
+
+constexpr int SCREEN_W = 750;
+constexpr int SCREEN_H = 500; 
 
 
-constexpr int SCREEN_W = 800;
-constexpr int SCREEN_H = 600;
-
-
-////////////////////////////////////
-/////   OPERATOR OVERLOADING   /////
-////////////////////////////////////
-
-std::ostream& operator<< (std::ostream &out, const Vector2 &temp) {
-    out << temp.x << "," << temp.y;
-    return out;
-}
-
-Vector2 operator* (const Vector2 &a, const float scale) {
-    return (Vector2){a.x*scale, a.y*scale};
-}
-
-Vector2& operator+= (Vector2 &a, const Vector2 &b) {
-    a.x += b.x;
-    a.y += b.y;
-    return a;
-}
-
-Vector2 operator+ (Vector2 a, const Vector2 &b) {
-    a += b;
-    return a;
-}
-
-/////////////////////////////
-/////// PLAYER CLASS ///////
-////////////////////////////
-class Player {
+//////////////////////
+///// RAYCASTER /////
+//////////////////////
+class Raycaster {
 private:
-    /*
-        player would be an isoceles triangle with a height longer than the base (considering the player faces along the Y-axis - straight ahead)
-        to represent the direction the player is facing along, we'll draw a circle (point at the top vertex - head)
-        
-        the pos (centroid of the triangle) represents the axis along which the player rotates
-    */
-
-    std::vector<Vector2> playerVs = {{0,0},{0,0},{0,0}};
-    Vector2 dims = {0, 0}; // {base, height}
-    Vector2 pos = {SCREEN_W/2, SCREEN_H/2}; // centroid of the triangle
-    Color color = WHITE;
+    float fov = 90.0 * (M_PI / 180.0);
+    float zoom = 1.0;
+    const int width = SCREEN_W, height = SCREEN_H;
 
 public:
-    Player(Vector2 pos, Vector2 dims, Color color) {
-        this->pos = pos;
-        this->dims = dims;
-        this->color = color;
-    }
+    void raycaster(Vector2 dir, Vector2 plane, Vector2 pos, float CELL_SIZE, std::vector<std::vector<Color>> &map) {
+        Color tileCellColor = mapColors[0];
 
-    std::vector<Vector2> updatePlayer(float angle, Vector2 offset) {
-        std::vector<Vector2> playerVsLocal = {
-            { -dims.x/2,   dims.y/3 },
-            {  dims.x/2,   dims.y/3 },
-            {         0,-2*dims.y/3 }
-        };
-        
-        // translate the centroid
-        translate(offset);
+        Vector2 rayPos = pos/CELL_SIZE;
 
-        // std::vector<Vector2> playerOut;
+        for (int i = 0; i < width; i++) {
+            int mapX = int(rayPos.x), mapY = int(rayPos.y);
+            float cameraX = (2*i/(float)width)-1;
+            // convert dir and plane to unit vectors relative to map before calculating ray direction
+            // Vector2 rayDir = (dir-pos)/CELL_SIZE + (plane-pos)/CELL_SIZE * cameraX;
+            Vector2 rayDir = normalize(dir) + normalize(plane) * cameraX;
 
-        for (int i = 0; i < 3; i++) {
-            Vector2 temp = rotate(playerVsLocal[i], angle);
-            playerVs[i] = { temp.x+pos.x, temp.y+pos.y };
+            // length of ray from 1 side to next side
+            // (determines distance for both the vertical and horizontal sides of cells)
+            Vector2 dDist = {
+                rayDir.x == 0 ? 1e7 : std::fabs(1.0f / rayDir.x),
+                rayDir.y == 0 ? 1e7 : std::fabs(1.0f / rayDir.y)
+            };
+
+            // length of ray from curr pos to next cell-side
+            Vector2 dSide = {
+                rayDir.x < 0 ? (rayPos.x - mapX) * dDist.x : (mapX + 1.0 - rayPos.x) * dDist.x,
+                rayDir.y < 0 ? (rayPos.y - mapY) * dDist.y : (mapY + 1.0 - rayPos.y) * dDist.y
+            };
+
+            // direction to step in x and y directions (+1 or -1) - used for travelling through map
+            int stepX = (rayDir.x < 0 ? -1 : 1), stepY = (rayDir.y < 0 ? -1 : 1);
+            bool hit = false;
+            int side;
+
+            while (!hit) {
+                if (dSide.x < dSide.y) {
+                    dSide.x += dDist.x;
+                    mapX += stepX;
+                    side = 0;
+                } else {
+                    dSide.y += dDist.y;
+                    mapY += stepY;
+                    side = 1;
+                }
+
+                if (mapX < 0 || mapX >= map[0].size() || mapY < 0 || mapY >= map.size()) {
+                    break;
+                }
+                // not good design, but eh... whatever
+                if (map[mapY][mapX] != tileCellColor) {
+                    hit = true;
+                }
+            }
+
+            if (mapX < 0 || mapX >= map[0].size() || mapY < 0 || mapY >= map.size()) {
+                continue;
+            }
+            // want to check out how the fisheye effect works
+            // but not now
+            // Vector2 posWall = { (float)mapX*(float)CELL_SIZE, (float)mapY*(float)CELL_SIZE };
+            // float dx = (posWall.x-pos.x), dy = (posWall.y-pos.y);
+            // float distWall = sqrt(dx*dx + dy*dy);
+
+            float distCamPlaneWall = dSide.x - dDist.x;
+            if (side == 1) {
+                distCamPlaneWall = dSide.y - dDist.y;
+            }
+
+            int lHeight = (int)(height / distCamPlaneWall);
+            int drawStart = -lHeight/2 + height/2;
+            if (drawStart < 0) {
+                drawStart = 0;
+            }
+
+            int drawEnd = lHeight/2 + height/2;
+            if (drawEnd >= height) {
+                drawEnd = height - 1;
+            }
+
+            Color wallColor = map[mapY][mapX];
+            // wallColor /= ()
+            if (side == 1) {
+                wallColor /= 2;
+            }
+
+            // Vector2 distWall = {
+            //     fabs(pos.x-((float)mapX*CELL_SIZE)+(distCamPlaneWall*(side==0))),
+            //     fabs(pos.y-((float)mapY*CELL_SIZE)+(distCamPlaneWall*side))
+            // };
+
+            // float euclidDistWall = vec_mag(normalize(distWall));
+            // // if (euclidDistWall < 0.95)
+            //     std::cout << "distance to wall: " << euclidDistWall << std::endl;
+
+            // // std::cout << "wallColor(before)=" << wallColor << ", ";
+            // euclidDistWall = std::min(1.0f, std::max(euclidDistWall, 0.2f));
+
+            // wallColor *= euclidDistWall;
+            // // std::cout << "wallColor(after)=" << wallColor << std::endl;
+
+
+            DrawLine(i, drawStart, i, drawEnd, wallColor);
         }
-        // std::cout << "player vertices:- ";
-        // for (auto &v : playerVs) {
-        //     std::cout << "(" << v.x << "," << v.y << ") , ";
-        // }
-        // std::cout << "\n";
-        return playerVs;
-    }
-
-    void drawPlayer(float angle, Vector2 offset) {
-        updatePlayer(angle, offset);
-        DrawTriangle(playerVs[1], playerVs[2], playerVs[0], color);
-        DrawCircleV(playerVs[2], 3, YELLOW);
-    }
-
-    void translate(Vector2 offset) {
-        pos += offset;
-        pos.x = std::min(std::max(pos.x, 0.0f), (float)SCREEN_W);
-        pos.y = std::min(std::max(pos.y, 0.0f), (float)SCREEN_H);
-    }
-
-    Vector2 rotate(Vector2 v, float angle) {
-        float sine = sin(angle), cosine = cos(angle);
-        return (Vector2){
-            v.x*cosine - v.y*sine,
-            v.x*sine   + v.y*cosine
-        };
-    }
-
-    void SetPlayerPos(Vector2 newPos) {
-        pos = newPos;
-    }
-
-    Vector2 GetPlayerPos() const {
-        return pos;
     }
 };
 
 
-int main()
-{
-    InitWindow(SCREEN_W, SCREEN_H, "raycasting go brrr....");
+///////////////////
+///// PLAYER /////
+///////////////////
+class Player {
+private:
+    // for now player is a circle... an orb... of life (too dramatic)
+    Vector2 pos = { 0, 0 };
+    float radius = 0.0;
+    Vector2 dir = { 0, 0 };
+    float planeLen = 0.0;
+    Vector2 posPlane = { 0, 0 };
+    Vector2 negPlane = { 0, 0 };
+    float FOV = 0.0;
+    Color color = WHITE;
 
-    const Vector2 playerPosInit = {400,300};
-    const Vector2 playerDims = {20,40};
-    Color playerColor = {0xfa, 0xfa, 0xfa, 0xff};
-    Player player(playerPosInit, playerDims, playerColor);
+public:
+    /*
+    player must be initialized with the length of the perpendicular direction vector (float),
+    and the FOV (again, a float)
+    FOV = |dir| / |plane|
+    hence, we can find the length of the plane vector as:
+    |plane| = |dir| / FOV
+    the plane vector is supposed to be perpendicular to the direction vector; therefore, if
+    */
+    Player(Vector2 pos, float radius, float dirLen, float FOV, Color color) {
+        this->FOV = FOV;
+        this->pos = pos;
+        this->color = color;
+        this->radius = radius;
+        dir = { pos.x, pos.y-dirLen };
+        // since plane is supposed to be perpendicular to dir
+        planeLen = dirLen/FOV;
+        posPlane = { dir.x+planeLen, dir.y };
+        negPlane = { dir.x-planeLen, dir.y };
+        // std::cout << "planeLen=" << planeLen << ", posPlaneV=" << posPlane << ", negPlaneV=" << negPlane << std::endl;
+    }
 
-    constexpr float FPS = 60;
-    SetTargetFPS(FPS);
-    float dt = 1/FPS;
-    Vector2 moveOffset;
-    float angle = 0.0;
+    // getters
+    Vector2 getPlayerPos() {
+        return pos;
+    }
 
-    // std::unordered_map<int, Vector2> offset = { {KEY_W,{0.0,-10.0}}, {KEY_A,{-10.0,0.0}}, {KEY_S,{0.0,10.0}}, {KEY_D,{10.0,0.0}} };
-    float offsetScale = 100.0;
+    Vector2 getPlayerDir() {
+        return dir-pos;
+    }
+
+    Vector2 getPlayerPlane() {
+        return posPlane-pos;
+    }
+
+    void drawPlayer() {
+        DrawCircleV(pos, radius, color);
+        DrawLineV(pos, dir, YELLOW);
+        DrawLineV(dir, posPlane, GREEN);
+        DrawLineV(dir, negPlane, GREEN);
+        DrawLineV(pos, posPlane, WHITE);
+        DrawLineV(pos, negPlane, WHITE);
+    }
+
+    void updatePlayer(float dAngle, Vector2 offset, float CELL_SIZE) {
+        float cosine = cos(dAngle), sine = sin(dAngle);
+
+        Vector2 dir_ = dir;
+        dir.x = (dir_.x-pos.x)*cosine - (dir_.y-pos.y)*sine   + pos.x;
+        dir.y = (dir_.x-pos.x)*sine   + (dir_.y-pos.y)*cosine + pos.y;
+
+        Vector2 posPlane_ = posPlane;
+        posPlane.x = (posPlane_.x-pos.x)*cosine - (posPlane_.y-pos.y)*sine   + pos.x;
+        posPlane.y = (posPlane_.x-pos.x)*sine   + (posPlane_.y-pos.y)*cosine + pos.y;
+
+        Vector2 negPlane_ = negPlane;
+        negPlane.x = (negPlane_.x-pos.x)*cosine - (negPlane_.y-pos.y)*sine   + pos.x;
+        negPlane.y = (negPlane_.x-pos.x)*sine   + (negPlane_.y-pos.y)*cosine + pos.y;
+
+        pos += offset;
+        dir += offset;
+        posPlane += offset;
+        negPlane += offset;
+    }
+};
+
+
+int main() {
+    InitWindow(SCREEN_W, SCREEN_H, "raycasting go brr...");
+
+    // player params
+    Vector2 pInitPos = { SCREEN_W / 2, SCREEN_H / 2 };
+    Color pColor = BLUE;
+    float pCircleRadius = 10.0;
+    float pFocusDirLen = 50.0;
+    float pFOV = 90.0 * (M_PI / 180);  // in radians
+
+    Raycaster pRaycaster;
+
+    // update params
+    int FPS = 60;
+    float dt = 1.0f / (float)FPS;
+
+    // map params
+    std::string mapfn = "map1.txt";
+    float CELL_SIZE = SCREEN_H / NTILES.first;
+    std::vector<std::vector<Color>> map = createMap(mapfn);
+
+    Player player(pInitPos, pCircleRadius, pFocusDirLen, pFOV, pColor);
+    float prev_angle = M_PI_2;
+
     while (!WindowShouldClose()) {
         // Update
-        // FPS = GetFPS();
-        dt = 1/FPS;
-        moveOffset = {0.0,0.0};
+        
+        // render-related variables
+        // int curr_fps = GetFPS();
+
+        // player-related variables
+        Vector2 mousePos = GetMousePosition();
+        Vector2 playerPos = player.getPlayerPos();
+        Vector2 playerDir = player.getPlayerDir();
+
+        Vector2 forward = normalize(playerDir);
+        Vector2 right = { forward.y, -forward.x };
+
+        Vector2 offset = { 0.0,0.0 };
+
+
         if (IsKeyDown(KEY_W)) {
-            moveOffset.y -= offsetScale*dt;
+            offset += forward*dt;
         }
         if (IsKeyDown(KEY_S)) {
-            moveOffset.y += offsetScale*dt;
+            offset -= forward*dt;
         }
         if (IsKeyDown(KEY_A)) {
-            moveOffset.x -= offsetScale*dt;
+            offset += right*dt;
         }
         if (IsKeyDown(KEY_D)) {
-            moveOffset.x += offsetScale*dt;
+            offset -= right*dt;
         }
 
-        Vector2 mousePos = GetMousePosition();
-        Vector2 playerPos = player.GetPlayerPos();
+        // std::cout << "offset=" << offset << std::endl;
 
-        angle = atan2((mousePos.y-playerPos.y), (mousePos.x-playerPos.x));
-        
+        float dx = playerPos.x-mousePos.x, dy = playerPos.y-mousePos.y;
+        float angle = atan2(dy, dx);
+        // std::cout << "angle=" << angle * 180 / M_PI << std::endl;
+
+        player.updatePlayer(angle-prev_angle, offset, CELL_SIZE);
+        prev_angle = angle;
+
+        auto pDir = player.getPlayerDir();
+        auto pPlane = player.getPlayerPlane();
+        auto pPos = player.getPlayerPos();
+
         // Draw
         BeginDrawing();
-            ClearBackground(BLACK);
-            player.drawPlayer(angle, moveOffset);
+
+        ClearBackground(BLACK);
+
+        DrawFPS(25,15);
+
+        DrawRectangle(0,SCREEN_H/2, SCREEN_W,SCREEN_H, (Color){ 10,100,0,150 });
+        // drawMap(map, CELL_SIZE);
+        // player.drawPlayer();
+        pRaycaster.raycaster(pDir, pPlane, pPos, CELL_SIZE, map);
         EndDrawing();
     }
 
-    CloseWindow();
     return 0;
 }
