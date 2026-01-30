@@ -6,7 +6,7 @@ LIB = ./raylib-5.5_win64_mingw-w64/lib
 all: game.exe
 
 game.exe:
-	$(CC) -o game.exe main.cpp -I $(INC) -L $(LIB) $(FLAGS)
+	$(CC) -o game.exe main.cpp operator_overloads.cpp map_utils.cpp -I $(INC) -L $(LIB) $(FLAGS)
 
 clean:
 	rm -rf game.exe
