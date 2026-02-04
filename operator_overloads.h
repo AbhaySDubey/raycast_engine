@@ -33,6 +33,9 @@ Vector2 operator- (Vector2 a, const Vector2 &b);
 Vector2 operator/= (Vector2 &a, const float scale);
 Vector2 operator/ (Vector2 a, const float scale);
 
+// dividing a 2d vector by another
+Vector2 operator/= (Vector2 &a, const Vector2 &b);
+Vector2 operator/ (Vector2 a, const Vector2 &b);
 
 //////////////////
 ///// COLOR /////
