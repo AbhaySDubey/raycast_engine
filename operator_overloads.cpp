@@ -78,6 +78,15 @@ Vector2 operator/ (Vector2 a, const float scale) {
     return a;
 }
 
+// dividing a 2d vector by another
+Vector2 operator/= (Vector2 &a, const Vector2 &b) {
+    a.x /= b.x; a.y /= b.y;
+    return a;
+}
+Vector2 operator/ (Vector2 a, const Vector2 &b) {
+    a /= b;
+    return a;
+}
 
 //////////////////
 ///// COLOR /////
