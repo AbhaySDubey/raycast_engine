@@ -1,7 +1,7 @@
 CC = g++
 FLAGS = -lraylib -lwinmm -lgdi32 -Wall
-INC = ./raylib-5.5_win64_mingw-w64/include
-LIB = ./raylib-5.5_win64_mingw-w64/lib
+INC = ./raylib_5.5/include
+LIB = ./raylib_5.5/lib
 
 all: game.exe
 
