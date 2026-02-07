@@ -1,12 +1,26 @@
-CC = g++
-FLAGS = -lraylib -lwinmm -lgdi32 -Wall
+CC := g++
 INC = ./raylib_5.5/include
 LIB = ./raylib_5.5/lib
 
-all: game.exe
+CFLAGS := -Wall -I $(INC)
+LFLAGS := -L $(LIB) -lraylib -lwinmm -lgdi32 -Wall
 
-game.exe:
-	$(CC) -o game.exe main.cpp operator_overloads.cpp map_utils.cpp -I $(INC) -L $(LIB) $(FLAGS)
+SRC := main.cpp operator_overloads.cpp map_utils.cpp
+OBJ := $(SRC:%.cpp=build/%.o)
+
+
+TARGET := build/game.exe
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(TARGET): $(OBJ)
+	$(CC) -o $@ $^ $(LFLAGS)
+
+build/%.o: %.cpp
+	@mkdir -p build
+	$(CC) -c $(CFLAGS) $< -o $@
 
 clean:
-	rm -rf game.exe
+	rm -rf build/
