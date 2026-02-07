@@ -3,3 +3,5 @@ temp.cpp
 main-failed1.cpp
 main-failed2.cpp
 res/.temp/
+build/
+*.exe
