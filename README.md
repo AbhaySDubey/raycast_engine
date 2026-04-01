@@ -4,9 +4,7 @@
 A simple and fast raycasting engine built using C++ and Raylib. It can run at 350+ FPS and has minimal 
 
 ### Demo
-<video width="320" height="240" controls>
-    <source src="res/raycasting_demo.mp4" type="video/mp4">
-</video>
+![Demo](res/raycasting_demo.gif)
 
 ---
 
