@@ -383,6 +383,7 @@ int main() {
     }
 
     UnloadRenderTexture(background);
+    UnloadRenderTexture(minimap);
     CloseWindow();
     return 0;
 }
