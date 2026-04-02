@@ -38,7 +38,7 @@ Raycasting is a semi-3D (2.5D) perspective projection method that was used in ma
 
     `./build/game.exe`
 
-#### Note: This project uses [Raylib](https://www.raylib.com/) To run the project, change the `lib` and `include` folders to your raylib installation.
+#### Note: This project uses [Raylib](https://www.raylib.com/). To run the project, change the `lib` and `include` folders to your raylib installation.
 
 ---
 
